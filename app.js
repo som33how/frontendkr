@@ -404,10 +404,6 @@ class MusicPlayer {
                 this.saveState();
                 this.renderTrackList();
                 
-                if (this.tracks.length === 1 && this.currentTrackIndex === -1) {
-                    this.playTrack(0);
-                }
-                
                 const dataSizeMB = (track.data.length / (1024 * 1024)).toFixed(2);
                 if (dataSizeMB > 3 && !this.storageWarningShown) {
                     console.warn(`Внимание: файл "${track.name}" весит ${dataSizeMB} МБ в Base64. Может не сохраниться в localStorage.`);
