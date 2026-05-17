@@ -7,12 +7,12 @@ class MusicPlayer {
         this.audio = new Audio();
         this.isPlaying = false;
         this.playlistToDelete = null;
+        this.storageWarningShown = false;
         
         this.initElements();
         this.setupEventListeners();
-        this.loadState(); // Загружаем сохранённое состояние
+        this.loadState();
         
-        // Устанавливаем начальную громкость
         this.audio.volume = 0.7;
         this.volumeSlider.value = 70;
     }
@@ -40,12 +40,10 @@ class MusicPlayer {
         this.closeAddTracks = document.getElementById('closeAddTracks');
         this.trackCover = document.getElementById('trackCover');
         
-        // Элементы громкости
         this.volumeBtn = document.getElementById('volumeBtn');
         this.volumeSlider = document.getElementById('volumeSlider');
         this.volumeSliderContainer = document.getElementById('volumeSliderContainer');
         
-        // Элементы для удаления
         this.deletePlaylistModal = document.getElementById('deletePlaylistModal');
         this.deletePlaylistMessage = document.getElementById('deletePlaylistMessage');
         this.cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
@@ -53,14 +51,11 @@ class MusicPlayer {
     }
 
     setupEventListeners() {
-        // Загрузка треков
         this.audioUpload.addEventListener('change', (e) => {
             this.handleFileUpload(e.target.files);
-            // Очищаем input, чтобы можно было загрузить те же файлы повторно
             this.audioUpload.value = '';
         });
 
-        // Кнопка загрузки/добавления треков
         this.uploadBtn.addEventListener('click', (e) => {
             if (this.currentPlaylist !== 'all') {
                 e.preventDefault();
@@ -68,44 +63,35 @@ class MusicPlayer {
             }
         });
 
-        // Управление воспроизведением
         this.playBtn.addEventListener('click', () => this.togglePlay());
         this.prevBtn.addEventListener('click', () => this.playPrev());
         this.nextBtn.addEventListener('click', () => this.playNext());
         
-        // Прогресс
         this.progress.addEventListener('input', () => {
             const time = (this.progress.value / 100) * this.audio.duration;
             this.audio.currentTime = time;
         });
 
-        // Обновление прогресса и длительности
         this.audio.addEventListener('timeupdate', () => this.updateProgress());
         this.audio.addEventListener('loadedmetadata', () => this.updateDuration());
-        
-        // Автоматическое воспроизведение следующего трека
         this.audio.addEventListener('ended', () => this.playNext());
 
-        // Обработка ошибок аудио
         this.audio.addEventListener('error', (e) => {
             console.error('Ошибка воспроизведения:', e);
-            alert('Не удалось воспроизвести трек. Возможно, файл повреждён.');
+            this.isPlaying = false;
+            this.updatePlayerUI();
             this.playNext();
         });
 
-        // Плейлисты
         this.addPlaylistBtn.addEventListener('click', () => this.showPlaylistModal());
         this.cancelPlaylistBtn.addEventListener('click', () => this.hidePlaylistModal());
         this.createPlaylistBtn.addEventListener('click', () => this.createPlaylist());
         this.closeAddTracks.addEventListener('click', () => this.hideAddTracksModal());
         
-        // Удаление плейлиста
         this.cancelDeletePlaylist.addEventListener('click', () => this.hideDeletePlaylistModal());
         this.confirmDeletePlaylist.addEventListener('click', () => this.deletePlaylist());
         
-        // Клик по плейлисту
         this.playlistsGrid.addEventListener('click', (e) => {
-            // Проверяем, не кликнули ли по кнопке удаления
             if (e.target.classList.contains('playlist-delete-btn')) {
                 e.stopPropagation();
                 const card = e.target.closest('.playlist-card');
@@ -121,7 +107,6 @@ class MusicPlayer {
             }
         });
 
-        // Управление громкостью
         this.volumeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.volumeSliderContainer.classList.toggle('active');
@@ -132,12 +117,22 @@ class MusicPlayer {
             this.updateVolumeIcon();
         });
 
-        // Закрытие слайдера громкости при клике вне его
         document.addEventListener('click', (e) => {
             if (!this.volumeSliderContainer.contains(e.target) && 
                 e.target !== this.volumeBtn) {
                 this.volumeSliderContainer.classList.remove('active');
             }
+        });
+
+        // Синхронизация состояния isPlaying с реальным состоянием audio
+        this.audio.addEventListener('play', () => {
+            this.isPlaying = true;
+            this.updatePlayerUI();
+        });
+        
+        this.audio.addEventListener('pause', () => {
+            this.isPlaying = false;
+            this.updatePlayerUI();
         });
     }
 
@@ -157,8 +152,7 @@ class MusicPlayer {
             };
             localStorage.setItem('musicPlayerState', JSON.stringify(state));
         } catch (e) {
-            console.error('Ошибка сохранения в localStorage:', e);
-            alert('Не удалось сохранить данные. Возможно, закончилось место. Удалите некоторые треки.');
+            console.log('localStorage переполнен, сохранение невозможно');
         }
     }
 
@@ -173,33 +167,27 @@ class MusicPlayer {
 
             const state = JSON.parse(saved);
 
-            // Восстанавливаем треки
             this.tracks = (state.tracks || []).map(t => ({
                 id: t.id,
                 name: t.name,
                 data: t.data,
                 artist: t.artist || 'Неизвестный исполнитель',
-                url: t.data // url = data для совместимости
+                url: t.data
             }));
 
-            // Восстанавливаем плейлисты
             this.playlists = state.playlists || {};
 
-            // Восстанавливаем плейлисты так, чтобы треки внутри были ссылками на реальные объекты
             Object.keys(this.playlists).forEach(playlistName => {
                 this.playlists[playlistName] = this.playlists[playlistName].map(pt => {
                     return this.tracks.find(t => t.id === pt.id);
                 }).filter(t => t !== undefined);
             });
 
-            // Восстанавливаем текущий плейлист
             this.currentPlaylist = state.currentPlaylist || 'all';
 
-            // Рендерим всё
             this.renderPlaylists();
             this.renderTrackList();
 
-            // Восстанавливаем выделение плейлиста в сайдбаре
             document.querySelectorAll('.playlist-card').forEach(card => {
                 card.classList.remove('active');
                 if (card.dataset.playlist === this.currentPlaylist) {
@@ -207,7 +195,6 @@ class MusicPlayer {
                 }
             });
 
-            // Обновляем текст кнопки загрузки
             this.updateUploadButton();
 
         } catch (e) {
@@ -235,40 +222,53 @@ class MusicPlayer {
         }
     }
 
-    // ============ Загрузка файлов с диска (конвертация в Base64) ============
+    // ============ Загрузка файлов ============
 
     handleFileUpload(files) {
         Array.from(files).forEach(file => {
-            if (file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|ogg|flac|aac|m4a)$/i)) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const track = {
-                        id: Date.now() + Math.random(),
-                        name: file.name.replace(/\.[^/.]+$/, ""),
-                        data: e.target.result, // Base64 строка
-                        url: e.target.result,  // url = data для совместимости
-                        artist: 'Неизвестный исполнитель'
-                    };
-                    this.tracks.push(track);
-                    this.saveState();
-                    this.renderTrackList();
-                    
-                    // Если это первый трек, сразу начинаем воспроизведение
-                    if (this.tracks.length === 1 && this.currentTrackIndex === -1) {
-                        this.playTrack(0);
-                    }
-                };
-                reader.onerror = () => {
-                    alert(`Ошибка при чтении файла: ${file.name}`);
-                };
-                reader.readAsDataURL(file);
-            } else {
-                alert(`Файл ${file.name} не является аудиофайлом`);
+            const isAudio = file.type.startsWith('audio/') || 
+                          file.name.match(/\.(mp3|wav|wave|ogg|flac|aac|m4a)$/i);
+            
+            if (!isAudio) {
+                console.log(`Пропущен неаудио файл: ${file.name}`);
+                return;
             }
+
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const track = {
+                    id: Date.now() + Math.random(),
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    data: e.target.result,
+                    url: e.target.result,
+                    artist: 'Неизвестный исполнитель'
+                };
+                
+                this.tracks.push(track);
+                this.saveState();
+                this.renderTrackList();
+                
+                if (this.tracks.length === 1 && this.currentTrackIndex === -1) {
+                    this.playTrack(0);
+                }
+                
+                const dataSizeMB = (track.data.length / (1024 * 1024)).toFixed(2);
+                if (dataSizeMB > 3 && !this.storageWarningShown) {
+                    console.warn(`Внимание: файл "${track.name}" весит ${dataSizeMB} МБ в Base64. Может не сохраниться в localStorage.`);
+                    this.storageWarningShown = true;
+                }
+            };
+            
+            reader.onerror = () => {
+                console.error(`Ошибка при чтении файла: ${file.name}`);
+            };
+            
+            reader.readAsDataURL(file);
         });
     }
 
-    // ============ Управление плейлистами (с сохранением) ============
+    // ============ Управление плейлистами ============
 
     showPlaylistModal() {
         this.playlistModal.classList.add('active');
@@ -359,7 +359,6 @@ class MusicPlayer {
         const trackIndex = this.tracks.findIndex(t => t.id == trackId);
         if (trackIndex === -1) return;
         
-        // Если удаляем текущий трек
         if (trackIndex === this.currentTrackIndex) {
             this.audio.pause();
             this.audio.src = '';
@@ -370,12 +369,10 @@ class MusicPlayer {
             this.currentTrackIndex--;
         }
         
-        // Удаляем трек из всех плейлистов
         Object.keys(this.playlists).forEach(playlistName => {
             this.playlists[playlistName] = this.playlists[playlistName].filter(t => t.id != trackId);
         });
         
-        // Удаляем трек из общего списка
         this.tracks.splice(trackIndex, 1);
         
         this.saveState();
@@ -407,7 +404,7 @@ class MusicPlayer {
         this.hideDeletePlaylistModal();
     }
 
-    // ============ Отрисовка и UI ============
+    // ============ Отрисовка ============
 
     getCurrentTracks() {
         if (this.currentPlaylist === 'all') {
@@ -444,9 +441,10 @@ class MusicPlayer {
     }
 
     isCurrentTrack(track) {
-        if (this.currentTrackIndex === -1) return false;
-        const currentTracks = this.getCurrentTracks();
-        return currentTracks[this.currentTrackIndex] === track;
+        if (this.currentTrackIndex === -1 || !track) return false;
+        // Сравниваем по id вместо ссылки на объект
+        const currentTrack = this.tracks[this.currentTrackIndex];
+        return currentTrack && currentTrack.id === track.id;
     }
 
     renderPlaylists() {
@@ -486,26 +484,18 @@ class MusicPlayer {
         if (index >= 0 && index < this.tracks.length) {
             const track = this.tracks[index];
             
-            // Останавливаем текущее воспроизведение
             this.audio.pause();
-            
-            // Устанавливаем новый источник
             this.audio.src = track.data;
-            
-            // Обновляем индекс
             this.currentTrackIndex = index;
             
-            // Запускаем воспроизведение
             const playPromise = this.audio.play();
             
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    this.isPlaying = true;
-                    this.updatePlayerUI();
+                    // isPlaying обновится в событии 'play'
                     this.renderTrackList();
                 }).catch(error => {
                     console.error('Ошибка воспроизведения:', error);
-                    alert('Не удалось воспроизвести трек. Попробуйте другой файл.');
                     this.isPlaying = false;
                     this.updatePlayerUI();
                 });
@@ -519,21 +509,19 @@ class MusicPlayer {
             return;
         }
 
-        if (this.isPlaying) {
-            this.audio.pause();
-            this.isPlaying = false;
-        } else {
+        if (this.audio.paused) {
             const playPromise = this.audio.play();
             if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    this.isPlaying = true;
-                }).catch(error => {
+                playPromise.catch(error => {
                     console.error('Ошибка воспроизведения:', error);
                     this.isPlaying = false;
+                    this.updatePlayerUI();
                 });
             }
+        } else {
+            this.audio.pause();
         }
-        this.updatePlayerUI();
+        // isPlaying обновится в событиях 'play'/'pause'
     }
 
     playNext() {
@@ -541,17 +529,17 @@ class MusicPlayer {
         if (currentTracks.length === 0) return;
         
         const currentTrack = this.tracks[this.currentTrackIndex];
-        const currentIndexInPlaylist = currentTracks.indexOf(currentTrack);
+        const currentIndexInPlaylist = currentTracks.findIndex(t => t.id === currentTrack?.id);
         
-        if (currentIndexInPlaylist < currentTracks.length - 1) {
+        if (currentIndexInPlaylist < currentTracks.length - 1 && currentIndexInPlaylist !== -1) {
             const nextTrack = currentTracks[currentIndexInPlaylist + 1];
             const globalIndex = this.tracks.indexOf(nextTrack);
             if (globalIndex !== -1) {
                 this.playTrack(globalIndex);
             }
         } else {
-            // Если это последний трек, останавливаем
             this.audio.pause();
+            this.audio.currentTime = 0;
             this.isPlaying = false;
             this.updatePlayerUI();
         }
@@ -562,7 +550,7 @@ class MusicPlayer {
         if (currentTracks.length === 0) return;
         
         const currentTrack = this.tracks[this.currentTrackIndex];
-        const currentIndexInPlaylist = currentTracks.indexOf(currentTrack);
+        const currentIndexInPlaylist = currentTracks.findIndex(t => t.id === currentTrack?.id);
         
         if (currentIndexInPlaylist > 0) {
             const prevTrack = currentTracks[currentIndexInPlaylist - 1];
