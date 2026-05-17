@@ -277,6 +277,7 @@ class MusicPlayer {
         
         this.currentThemeIndex = index;
         this.saveThemePreference();
+        this.renderPlaylists();
     }
 
     cycleTheme() {
@@ -601,25 +602,26 @@ class MusicPlayer {
     }
 
     renderPlaylists() {
-        const allPlaylistsHTML = `
-            <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
-                 data-playlist="all">
-                <div class="playlist-icon">🎵</div>
-                <span>Все треки</span>
-            </div>
-        `;
-        
-        const customPlaylistsHTML = Object.keys(this.playlists).map(name => `
+    const allPlaylistsHTML = `
+        <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
+             data-playlist="all">
+            <span>Все треки</span>
+        </div>
+    `;
+    
+    const customPlaylistsHTML = Object.keys(this.playlists).map(name => {
+        const emoji = this.getPlaylistEmoji();
+        return `
             <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
                  data-playlist="${name}">
-                <div class="playlist-icon">📁</div>
-                <span>${name}</span>
+                <span>${emoji} ${name}</span>
                 <button class="playlist-delete-btn" title="Удалить плейлист">✕</button>
             </div>
-        `).join('');
-        
-        this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
-    }
+        `;
+    }).join('');
+    
+    this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
+}
 
     // ============ Воспроизведение ============
 
@@ -755,6 +757,11 @@ class MusicPlayer {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    getPlaylistEmoji() {
+        const emojis = ['🐟', '🌻', '🌲', '🌅', '✨'];
+        return emojis[this.currentThemeIndex] || '📁';
     }
 }
 
