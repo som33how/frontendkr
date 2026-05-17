@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Музыкальный плеер</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Левая панель с плейлистами -->
+        <aside class="sidebar">
+            <h2>Плейлисты</h2>
+            <div class="playlists-grid" id="playlistsGrid">
+                <div class="playlist-card active" data-playlist="all">
+                    <div class="playlist-icon">🎵</div>
+                    <span>Все треки</span>
+                </div>
+            </div>
+            <button class="add-playlist-btn" id="addPlaylistBtn">+ Новый</button>
+        </aside>
+
+        <!-- Центральная область -->
+        <main class="main-content">
+            <div class="upload-area">
+                <input type="file" id="audioUpload" accept="audio/*" multiple hidden>
+                <button class="upload-btn" id="uploadBtn" onclick="document.getElementById('audioUpload').click()">
+                    + Загрузить треки
+                </button>
+            </div>
+            
+            <ul class="track-list" id="trackList">
+                <!-- Треки будут здесь -->
+            </ul>
+        </main>
+    </div>
+
+      <!-- Нижняя панель плеера -->
+    <footer class="player-bar">
+        <div class="player-bar-content">
+            <!-- Левая часть с информацией о треке -->
+            <div class="track-info-left">
+                <div class="track-cover" id="trackCover">
+                    <span class="cover-placeholder">🎵</span>
+                </div>
+                <div class="track-details">
+                    <span class="track-title" id="currentTrack">Нет трека</span>
+                    <span class="track-artist" id="currentArtist">Неизвестный исполнитель</span>
+                </div>
+            </div>
+            
+            <!-- Центральная часть с управлением -->
+            <div class="player-center">
+                <div class="player-controls-center">
+                    <button class="control-btn" id="prevBtn">⏮</button>
+                    <button class="control-btn play-btn" id="playBtn">▶</button>
+                    <button class="control-btn" id="nextBtn">⏭</button>
+                </div>
+                
+                <div class="progress-container">
+                    <span class="time current-time" id="currentTime">0:00</span>
+                    <input type="range" class="progress-bar" id="progress" value="0" min="0" max="100">
+                    <span class="time duration" id="duration">0:00</span>
+                </div>
+            </div>
+            
+            <!-- Правая часть с громкостью -->
+            <div class="volume-control">
+                <button class="control-btn volume-btn" id="volumeBtn">🔊</button>
+                <div class="volume-slider-container" id="volumeSliderContainer">
+                    <input type="range" class="volume-slider" id="volumeSlider" 
+                           min="0" max="100" value="70" orient="vertical">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Модальное окно для создания плейлиста -->
+    <div class="modal" id="playlistModal">
+        <div class="modal-content">
+            <h3>Новый плейлист</h3>
+            <input type="text" id="playlistName" placeholder="Название плейлиста">
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="cancelPlaylist">Отмена</button>
+                <button class="btn-create" id="createPlaylist">Создать</button>
+            </div>
+        </div>
+    </div>
+
+     <!-- Модальное окно для подтверждения удаления плейлиста -->
+    <div class="modal" id="deletePlaylistModal">
+        <div class="modal-content">
+            <h3>Удалить плейлист?</h3>
+            <p id="deletePlaylistMessage"></p>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="cancelDeletePlaylist">Отмена</button>
+                <button class="btn-create btn-delete" id="confirmDeletePlaylist">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления треков в плейлист -->
+    <div class="modal" id="addTracksModal">
+        <div class="modal-content modal-large">
+            <h3>Добавить треки в плейлист</h3>
+            <div class="tracks-selection" id="tracksSelection">
+                <!-- Список всех треков для выбора -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="closeAddTracks">Готово</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
