@@ -10,9 +10,11 @@ class MusicPlayer {
         
         this.initElements();
         this.setupEventListeners();
+        this.loadState(); // Загружаем сохранённое состояние
         
         // Устанавливаем начальную громкость
         this.audio.volume = 0.7;
+        this.volumeSlider.value = 70;
     }
 
     initElements() {
@@ -54,6 +56,8 @@ class MusicPlayer {
         // Загрузка треков
         this.audioUpload.addEventListener('change', (e) => {
             this.handleFileUpload(e.target.files);
+            // Очищаем input, чтобы можно было загрузить те же файлы повторно
+            this.audioUpload.value = '';
         });
 
         // Кнопка загрузки/добавления треков
@@ -81,6 +85,13 @@ class MusicPlayer {
         
         // Автоматическое воспроизведение следующего трека
         this.audio.addEventListener('ended', () => this.playNext());
+
+        // Обработка ошибок аудио
+        this.audio.addEventListener('error', (e) => {
+            console.error('Ошибка воспроизведения:', e);
+            alert('Не удалось воспроизвести трек. Возможно, файл повреждён.');
+            this.playNext();
+        });
 
         // Плейлисты
         this.addPlaylistBtn.addEventListener('click', () => this.showPlaylistModal());
@@ -130,22 +141,273 @@ class MusicPlayer {
         });
     }
 
+    // ============ LocalStorage методы ============
+
+    saveState() {
+        try {
+            const state = {
+                tracks: this.tracks.map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    data: t.data,
+                    artist: t.artist
+                })),
+                playlists: this.playlists,
+                currentPlaylist: this.currentPlaylist
+            };
+            localStorage.setItem('musicPlayerState', JSON.stringify(state));
+        } catch (e) {
+            console.error('Ошибка сохранения в localStorage:', e);
+            alert('Не удалось сохранить данные. Возможно, закончилось место. Удалите некоторые треки.');
+        }
+    }
+
+    loadState() {
+        try {
+            const saved = localStorage.getItem('musicPlayerState');
+            if (!saved) {
+                this.renderPlaylists();
+                this.renderTrackList();
+                return;
+            }
+
+            const state = JSON.parse(saved);
+
+            // Восстанавливаем треки
+            this.tracks = (state.tracks || []).map(t => ({
+                id: t.id,
+                name: t.name,
+                data: t.data,
+                artist: t.artist || 'Неизвестный исполнитель',
+                url: t.data // url = data для совместимости
+            }));
+
+            // Восстанавливаем плейлисты
+            this.playlists = state.playlists || {};
+
+            // Восстанавливаем плейлисты так, чтобы треки внутри были ссылками на реальные объекты
+            Object.keys(this.playlists).forEach(playlistName => {
+                this.playlists[playlistName] = this.playlists[playlistName].map(pt => {
+                    return this.tracks.find(t => t.id === pt.id);
+                }).filter(t => t !== undefined);
+            });
+
+            // Восстанавливаем текущий плейлист
+            this.currentPlaylist = state.currentPlaylist || 'all';
+
+            // Рендерим всё
+            this.renderPlaylists();
+            this.renderTrackList();
+
+            // Восстанавливаем выделение плейлиста в сайдбаре
+            document.querySelectorAll('.playlist-card').forEach(card => {
+                card.classList.remove('active');
+                if (card.dataset.playlist === this.currentPlaylist) {
+                    card.classList.add('active');
+                }
+            });
+
+            // Обновляем текст кнопки загрузки
+            this.updateUploadButton();
+
+        } catch (e) {
+            console.error('Ошибка загрузки из localStorage:', e);
+            this.tracks = [];
+            this.playlists = {};
+            this.currentPlaylist = 'all';
+            this.renderPlaylists();
+            this.renderTrackList();
+        }
+    }
+
+    updateUploadButton() {
+        if (this.currentPlaylist === 'all') {
+            this.uploadBtn.textContent = '+ Загрузить треки';
+            this.uploadBtn.classList.remove('playlist-mode');
+            this.uploadBtn.onclick = () => document.getElementById('audioUpload').click();
+        } else {
+            this.uploadBtn.textContent = '+ Добавить треки';
+            this.uploadBtn.classList.add('playlist-mode');
+            this.uploadBtn.onclick = (e) => {
+                e.preventDefault();
+                this.showAddTracksModal();
+            };
+        }
+    }
+
+    // ============ Загрузка файлов с диска (конвертация в Base64) ============
+
     handleFileUpload(files) {
         Array.from(files).forEach(file => {
-            if (file.type.startsWith('audio/')) {
-                const url = URL.createObjectURL(file);
-                const track = {
-                    id: Date.now() + Math.random(),
-                    name: file.name.replace(/\.[^/.]+$/, ""),
-                    url: url,
-                    file: file,
-                    artist: 'Неизвестный исполнитель'
+            if (file.type.startsWith('audio/') || file.name.match(/\.(mp3|wav|ogg|flac|aac|m4a)$/i)) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const track = {
+                        id: Date.now() + Math.random(),
+                        name: file.name.replace(/\.[^/.]+$/, ""),
+                        data: e.target.result, // Base64 строка
+                        url: e.target.result,  // url = data для совместимости
+                        artist: 'Неизвестный исполнитель'
+                    };
+                    this.tracks.push(track);
+                    this.saveState();
+                    this.renderTrackList();
+                    
+                    // Если это первый трек, сразу начинаем воспроизведение
+                    if (this.tracks.length === 1 && this.currentTrackIndex === -1) {
+                        this.playTrack(0);
+                    }
                 };
-                this.tracks.push(track);
+                reader.onerror = () => {
+                    alert(`Ошибка при чтении файла: ${file.name}`);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert(`Файл ${file.name} не является аудиофайлом`);
             }
         });
+    }
+
+    // ============ Управление плейлистами (с сохранением) ============
+
+    showPlaylistModal() {
+        this.playlistModal.classList.add('active');
+        this.playlistNameInput.focus();
+    }
+
+    hidePlaylistModal() {
+        this.playlistModal.classList.remove('active');
+        this.playlistNameInput.value = '';
+    }
+
+    createPlaylist() {
+        const name = this.playlistNameInput.value.trim();
+        if (name) {
+            this.playlists[name] = [];
+            this.saveState();
+            this.renderPlaylists();
+            this.hidePlaylistModal();
+        }
+    }
+
+    selectPlaylist(playlistId) {
+        this.currentPlaylist = playlistId;
+        
+        document.querySelectorAll('.playlist-card').forEach(card => {
+            card.classList.remove('active');
+            if (card.dataset.playlist === playlistId) {
+                card.classList.add('active');
+            }
+        });
+        
+        this.updateUploadButton();
+        this.saveState();
         this.renderTrackList();
     }
+
+    showAddTracksModal() {
+        this.addTracksModal.classList.add('active');
+        this.renderTracksSelection();
+    }
+
+    hideAddTracksModal() {
+        this.addTracksModal.classList.remove('active');
+    }
+
+    renderTracksSelection() {
+        const playlistTracks = this.playlists[this.currentPlaylist] || [];
+        
+        this.tracksSelection.innerHTML = this.tracks.map(track => {
+            const isInPlaylist = playlistTracks.some(t => t.id === track.id);
+            return `
+                <div class="track-select-item ${isInPlaylist ? 'selected' : ''}" 
+                     onclick="player.toggleTrackInPlaylist('${track.id}')">
+                    <span class="track-name">${track.name}</span>
+                    <span class="check-icon">${isInPlaylist ? '✓' : ''}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    toggleTrackInPlaylist(trackId) {
+        if (this.currentPlaylist === 'all') return;
+        
+        const track = this.tracks.find(t => t.id == trackId);
+        if (!track) return;
+        
+        const playlistTracks = this.playlists[this.currentPlaylist] || [];
+        const trackIndex = playlistTracks.findIndex(t => t.id == trackId);
+        
+        if (trackIndex === -1) {
+            playlistTracks.push(track);
+        } else {
+            playlistTracks.splice(trackIndex, 1);
+        }
+        
+        this.playlists[this.currentPlaylist] = playlistTracks;
+        this.saveState();
+        this.renderTracksSelection();
+        
+        if (this.currentPlaylist !== 'all') {
+            this.renderTrackList();
+        }
+    }
+
+    deleteTrack(trackId, event) {
+        event.stopPropagation();
+        
+        const trackIndex = this.tracks.findIndex(t => t.id == trackId);
+        if (trackIndex === -1) return;
+        
+        // Если удаляем текущий трек
+        if (trackIndex === this.currentTrackIndex) {
+            this.audio.pause();
+            this.audio.src = '';
+            this.isPlaying = false;
+            this.currentTrackIndex = -1;
+            this.updatePlayerUI();
+        } else if (trackIndex < this.currentTrackIndex) {
+            this.currentTrackIndex--;
+        }
+        
+        // Удаляем трек из всех плейлистов
+        Object.keys(this.playlists).forEach(playlistName => {
+            this.playlists[playlistName] = this.playlists[playlistName].filter(t => t.id != trackId);
+        });
+        
+        // Удаляем трек из общего списка
+        this.tracks.splice(trackIndex, 1);
+        
+        this.saveState();
+        this.renderTrackList();
+        this.renderPlaylists();
+    }
+
+    showDeletePlaylistModal(playlistName) {
+        this.playlistToDelete = playlistName;
+        this.deletePlaylistMessage.textContent = `Вы действительно хотите удалить плейлист "${playlistName}"?`;
+        this.deletePlaylistModal.classList.add('active');
+    }
+
+    hideDeletePlaylistModal() {
+        this.deletePlaylistModal.classList.remove('active');
+        this.playlistToDelete = null;
+    }
+
+    deletePlaylist() {
+        if (this.playlistToDelete && this.playlists[this.playlistToDelete]) {
+            if (this.currentPlaylist === this.playlistToDelete) {
+                this.selectPlaylist('all');
+            }
+            
+            delete this.playlists[this.playlistToDelete];
+            this.saveState();
+            this.renderPlaylists();
+        }
+        this.hideDeletePlaylistModal();
+    }
+
+    // ============ Отрисовка и UI ============
 
     getCurrentTracks() {
         if (this.currentPlaylist === 'all') {
@@ -167,9 +429,15 @@ class MusicPlayer {
             `;
         } else {
             this.trackList.innerHTML = currentTracks.map((track, index) => `
-                <li class="track-item ${this.isCurrentTrack(track) ? 'active' : ''}" 
-                    onclick="player.playTrackByIndex(${index})">
-                    ${track.name}
+                <li class="track-item ${this.isCurrentTrack(track) ? 'active' : ''}">
+                    <span onclick="player.playTrackByIndex(${index})" style="flex: 1;">
+                        ${track.name}
+                    </span>
+                    <button class="track-delete-btn" 
+                            onclick="player.deleteTrack('${track.id}', event)" 
+                            title="Удалить трек">
+                        ✕
+                    </button>
                 </li>
             `).join('');
         }
@@ -180,6 +448,29 @@ class MusicPlayer {
         const currentTracks = this.getCurrentTracks();
         return currentTracks[this.currentTrackIndex] === track;
     }
+
+    renderPlaylists() {
+        const allPlaylistsHTML = `
+            <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
+                 data-playlist="all">
+                <div class="playlist-icon">🎵</div>
+                <span>Все треки</span>
+            </div>
+        `;
+        
+        const customPlaylistsHTML = Object.keys(this.playlists).map(name => `
+            <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
+                 data-playlist="${name}">
+                <div class="playlist-icon">📁</div>
+                <span>${name}</span>
+                <button class="playlist-delete-btn" title="Удалить плейлист">✕</button>
+            </div>
+        `).join('');
+        
+        this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
+    }
+
+    // ============ Воспроизведение ============
 
     playTrackByIndex(index) {
         const currentTracks = this.getCurrentTracks();
@@ -193,12 +484,32 @@ class MusicPlayer {
 
     playTrack(index) {
         if (index >= 0 && index < this.tracks.length) {
+            const track = this.tracks[index];
+            
+            // Останавливаем текущее воспроизведение
+            this.audio.pause();
+            
+            // Устанавливаем новый источник
+            this.audio.src = track.data;
+            
+            // Обновляем индекс
             this.currentTrackIndex = index;
-            this.audio.src = this.tracks[index].url;
-            this.audio.play();
-            this.isPlaying = true;
-            this.updatePlayerUI();
-            this.renderTrackList();
+            
+            // Запускаем воспроизведение
+            const playPromise = this.audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    this.isPlaying = true;
+                    this.updatePlayerUI();
+                    this.renderTrackList();
+                }).catch(error => {
+                    console.error('Ошибка воспроизведения:', error);
+                    alert('Не удалось воспроизвести трек. Попробуйте другой файл.');
+                    this.isPlaying = false;
+                    this.updatePlayerUI();
+                });
+            }
         }
     }
 
@@ -210,10 +521,18 @@ class MusicPlayer {
 
         if (this.isPlaying) {
             this.audio.pause();
+            this.isPlaying = false;
         } else {
-            this.audio.play();
+            const playPromise = this.audio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    this.isPlaying = true;
+                }).catch(error => {
+                    console.error('Ошибка воспроизведения:', error);
+                    this.isPlaying = false;
+                });
+            }
         }
-        this.isPlaying = !this.isPlaying;
         this.updatePlayerUI();
     }
 
@@ -230,6 +549,11 @@ class MusicPlayer {
             if (globalIndex !== -1) {
                 this.playTrack(globalIndex);
             }
+        } else {
+            // Если это последний трек, останавливаем
+            this.audio.pause();
+            this.isPlaying = false;
+            this.updatePlayerUI();
         }
     }
 
@@ -268,8 +592,6 @@ class MusicPlayer {
             const track = this.tracks[this.currentTrackIndex];
             this.currentTrackEl.textContent = track.name;
             this.currentArtistEl.textContent = track.artist || 'Неизвестный исполнитель';
-            
-            // Обновляем обложку
             this.trackCover.innerHTML = '<span class="cover-placeholder">🎵</span>';
         } else {
             this.currentTrackEl.textContent = 'Нет трека';
@@ -294,227 +616,6 @@ class MusicPlayer {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    // Управление плейлистами
-    showPlaylistModal() {
-        this.playlistModal.classList.add('active');
-        this.playlistNameInput.focus();
-    }
-
-    hidePlaylistModal() {
-        this.playlistModal.classList.remove('active');
-        this.playlistNameInput.value = '';
-    }
-
-    createPlaylist() {
-        const name = this.playlistNameInput.value.trim();
-        if (name) {
-            this.playlists[name] = [];
-            this.renderPlaylists();
-            this.hidePlaylistModal();
-        }
-    }
-
-    selectPlaylist(playlistId) {
-        this.currentPlaylist = playlistId;
-        
-        // Обновляем активный класс
-        document.querySelectorAll('.playlist-card').forEach(card => {
-            card.classList.remove('active');
-            if (card.dataset.playlist === playlistId) {
-                card.classList.add('active');
-            }
-        });
-        
-        // Обновляем кнопку загрузки
-        if (playlistId === 'all') {
-            this.uploadBtn.textContent = '+ Загрузить треки';
-            this.uploadBtn.classList.remove('playlist-mode');
-            this.uploadBtn.onclick = () => document.getElementById('audioUpload').click();
-        } else {
-            this.uploadBtn.textContent = '+ Добавить треки';
-            this.uploadBtn.classList.add('playlist-mode');
-            this.uploadBtn.onclick = (e) => {
-                e.preventDefault();
-                this.showAddTracksModal();
-            };
-        }
-        
-        this.renderTrackList();
-    }
-
-    showAddTracksModal() {
-        this.addTracksModal.classList.add('active');
-        this.renderTracksSelection();
-    }
-
-    hideAddTracksModal() {
-        this.addTracksModal.classList.remove('active');
-    }
-
-    renderTracksSelection() {
-        const playlistTracks = this.playlists[this.currentPlaylist] || [];
-        
-        this.tracksSelection.innerHTML = this.tracks.map(track => {
-            const isInPlaylist = playlistTracks.some(t => t.id === track.id);
-            return `
-                <div class="track-select-item ${isInPlaylist ? 'selected' : ''}" 
-                     onclick="player.toggleTrackInPlaylist('${track.id}')">
-                    <span class="track-name">${track.name}</span>
-                    <span class="check-icon">${isInPlaylist ? '✓' : ''}</span>
-                </div>
-            `;
-        }).join('');
-    }
-
-    toggleTrackInPlaylist(trackId) {
-        if (this.currentPlaylist === 'all') return;
-        
-        const track = this.tracks.find(t => t.id == trackId);
-        if (!track) return;
-        
-        const playlistTracks = this.playlists[this.currentPlaylist] || [];
-        const trackIndex = playlistTracks.findIndex(t => t.id == trackId);
-        
-        if (trackIndex === -1) {
-            // Добавляем трек в плейлист
-            playlistTracks.push(track);
-        } else {
-            // Удаляем трек из плейлиста
-            playlistTracks.splice(trackIndex, 1);
-        }
-        
-        this.playlists[this.currentPlaylist] = playlistTracks;
-        this.renderTracksSelection();
-        
-        // Обновляем список треков, если мы сейчас в этом плейлисте
-        if (this.currentPlaylist !== 'all') {
-            this.renderTrackList();
-        }
-    }
-
-    renderPlaylists() {
-        const allPlaylistsHTML = `
-            <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
-                 data-playlist="all">
-                <div class="playlist-icon">🎵</div>
-                <span>Все треки</span>
-            </div>
-        `;
-        
-        const customPlaylistsHTML = Object.keys(this.playlists).map(name => `
-            <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
-                 data-playlist="${name}">
-                <div class="playlist-icon">📁</div>
-                <span>${name}</span>
-            </div>
-        `).join('');
-        
-        this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
-    }
-
-    deleteTrack(trackId, event) {
-        event.stopPropagation();
-        
-        const trackIndex = this.tracks.findIndex(t => t.id == trackId);
-        if (trackIndex === -1) return;
-        
-        // Если удаляем текущий трек
-        if (trackIndex === this.currentTrackIndex) {
-            this.audio.pause();
-            this.audio.src = '';
-            this.isPlaying = false;
-            this.currentTrackIndex = -1;
-            this.updatePlayerUI();
-        } else if (trackIndex < this.currentTrackIndex) {
-            // Сдвигаем индекс если удаляем трек перед текущим
-            this.currentTrackIndex--;
-        }
-        
-        // Удаляем трек из всех плейлистов
-        Object.keys(this.playlists).forEach(playlistName => {
-            this.playlists[playlistName] = this.playlists[playlistName].filter(t => t.id != trackId);
-        });
-        
-        // Удаляем трек из общего списка
-        this.tracks.splice(trackIndex, 1);
-        
-        this.renderTrackList();
-        this.renderPlaylists();
-    }
-
-    renderTrackList() {
-        const currentTracks = this.getCurrentTracks();
-        
-        if (currentTracks.length === 0) {
-            this.trackList.innerHTML = `
-                <div style="text-align: center; color: #999; padding: 40px;">
-                    ${this.currentPlaylist === 'all' ? 
-                        'Загрузите треки, чтобы начать' : 
-                        'Добавьте треки в этот плейлист'}
-                </div>
-            `;
-        } else {
-            this.trackList.innerHTML = currentTracks.map((track, index) => `
-                <li class="track-item ${this.isCurrentTrack(track) ? 'active' : ''}">
-                    <span onclick="player.playTrackByIndex(${index})" style="flex: 1;">
-                        ${track.name}
-                    </span>
-                    <button class="track-delete-btn" 
-                            onclick="player.deleteTrack('${track.id}', event)" 
-                            title="Удалить трек">
-                        ✕
-                    </button>
-                </li>
-            `).join('');
-        }
-    }
-
-    // Управление удалением плейлистов
-    showDeletePlaylistModal(playlistName) {
-        this.playlistToDelete = playlistName;
-        this.deletePlaylistMessage.textContent = `Вы действительно хотите удалить плейлист "${playlistName}"?`;
-        this.deletePlaylistModal.classList.add('active');
-    }
-
-    hideDeletePlaylistModal() {
-        this.deletePlaylistModal.classList.remove('active');
-        this.playlistToDelete = null;
-    }
-
-    deletePlaylist() {
-        if (this.playlistToDelete && this.playlists[this.playlistToDelete]) {
-            // Если удаляем текущий активный плейлист, переключаемся на "Все треки"
-            if (this.currentPlaylist === this.playlistToDelete) {
-                this.selectPlaylist('all');
-            }
-            
-            delete this.playlists[this.playlistToDelete];
-            this.renderPlaylists();
-        }
-        this.hideDeletePlaylistModal();
-    }
-
-    renderPlaylists() {
-        const allPlaylistsHTML = `
-            <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
-                 data-playlist="all">
-                <div class="playlist-icon">🎵</div>
-                <span>Все треки</span>
-            </div>
-        `;
-        
-        const customPlaylistsHTML = Object.keys(this.playlists).map(name => `
-            <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
-                 data-playlist="${name}">
-                <div class="playlist-icon">📁</div>
-                <span>${name}</span>
-                <button class="playlist-delete-btn" title="Удалить плейлист">✕</button>
-            </div>
-        `).join('');
-        
-        this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
     }
 }
 
