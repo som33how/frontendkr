@@ -9,8 +9,101 @@ class MusicPlayer {
         this.playlistToDelete = null;
         this.storageWarningShown = false;
         
+        // Темы
+        this.themes = [
+            {
+                name: 'Классическая',
+                bg: '#f5f5f5',
+                primary: '#2196F3',
+                primaryHover: '#1976D2',
+                text: '#333333',
+                textLight: '#999999',
+                cardBg: '#ffffff',
+                cardBorder: '#e0e0e0',
+                sidebarBg: '#fafafa',
+                playerBarBg: '#fafafa',
+                hoverBg: '#f8f8f8',
+                controlBtnBg: '#f0f0f0',
+                controlBtnHover: '#e0e0e0',
+                accentLight: '#e3f2fd',
+                shadow: 'rgba(0, 0, 0, 0.1)'
+            },
+            {
+                name: 'Тёплая',
+                bg: '#fdf8ed',
+                primary: '#dc2626',
+                primaryHover: '#b91c1c',
+                text: '#3b2f2a',
+                textLight: '#8b7355',
+                cardBg: '#fffaf0',
+                cardBorder: '#e8d5b0',
+                sidebarBg: '#fef9f0',
+                playerBarBg: '#fef9f0',
+                hoverBg: '#fff5e6',
+                controlBtnBg: '#f5e6d3',
+                controlBtnHover: '#e8d5b0',
+                accentLight: '#fef2f2',
+                shadow: 'rgba(139, 115, 85, 0.15)'
+            },
+            {
+                name: 'Лесная',
+                bg: '#eef4ed',
+                primary: '#2d6a4f',
+                primaryHover: '#1b4332',
+                text: '#1b4332',
+                textLight: '#40916c',
+                cardBg: '#ffffff',
+                cardBorder: '#b7d7c5',
+                sidebarBg: '#f7faf8',
+                playerBarBg: '#f7faf8',
+                hoverBg: '#f0f7f2',
+                controlBtnBg: '#e6f0e8',
+                controlBtnHover: '#c8e0ce',
+                accentLight: '#e8f5e9',
+                shadow: 'rgba(27, 67, 50, 0.1)'
+            },
+            {
+                name: 'Закатная',
+                bg: '#fff5f0',
+                primary: '#f97316',
+                primaryHover: '#ea580c',
+                text: '#4c2a1e',
+                textLight: '#9a6a4a',
+                cardBg: '#ffffff',
+                cardBorder: '#fed7aa',
+                sidebarBg: '#fffaf7',
+                playerBarBg: '#fffaf7',
+                hoverBg: '#fff7ed',
+                controlBtnBg: '#ffedd5',
+                controlBtnHover: '#fed7aa',
+                accentLight: '#fff7ed',
+                shadow: 'rgba(154, 106, 74, 0.15)'
+            },
+            {
+                name: 'Ночная',
+                bg: '#0f172a',
+                primary: '#38bdf8',
+                primaryHover: '#0ea5e9',
+                text: '#f1f5f9',
+                textLight: '#94a3b8',
+                cardBg: '#1e293b',
+                cardBorder: '#334155',
+                sidebarBg: '#1a2332',
+                playerBarBg: '#1a2332',
+                hoverBg: '#273548',
+                controlBtnBg: '#334155',
+                controlBtnHover: '#475569',
+                accentLight: '#1e3a5f',
+                shadow: 'rgba(0, 0, 0, 0.3)'
+            }
+        ];
+        
+        this.currentThemeIndex = 0;
+        this.loadThemePreference();
+        
         this.initElements();
         this.setupEventListeners();
+        this.applyTheme(this.currentThemeIndex);
         this.loadState();
         
         this.audio.volume = 0.7;
@@ -39,6 +132,7 @@ class MusicPlayer {
         this.tracksSelection = document.getElementById('tracksSelection');
         this.closeAddTracks = document.getElementById('closeAddTracks');
         this.trackCover = document.getElementById('trackCover');
+        this.themeBtn = document.getElementById('themeBtn');
         
         this.volumeBtn = document.getElementById('volumeBtn');
         this.volumeSlider = document.getElementById('volumeSlider');
@@ -124,7 +218,9 @@ class MusicPlayer {
             }
         });
 
-        // Синхронизация состояния isPlaying с реальным состоянием audio
+        // Кнопка переключения темы
+        this.themeBtn.addEventListener('click', () => this.cycleTheme());
+
         this.audio.addEventListener('play', () => {
             this.isPlaying = true;
             this.updatePlayerUI();
@@ -134,6 +230,64 @@ class MusicPlayer {
             this.isPlaying = false;
             this.updatePlayerUI();
         });
+    }
+
+    // ============ Управление темами ============
+
+    loadThemePreference() {
+        try {
+            const saved = localStorage.getItem('musicPlayerTheme');
+            if (saved !== null) {
+                const index = parseInt(saved);
+                if (index >= 0 && index < this.themes.length) {
+                    this.currentThemeIndex = index;
+                }
+            }
+        } catch (e) {
+            console.log('Не удалось загрузить тему');
+        }
+    }
+
+    saveThemePreference() {
+        try {
+            localStorage.setItem('musicPlayerTheme', this.currentThemeIndex.toString());
+        } catch (e) {
+            console.log('Не удалось сохранить тему');
+        }
+    }
+
+    applyTheme(index) {
+        const theme = this.themes[index];
+        const root = document.documentElement;
+        
+        root.style.setProperty('--bg', theme.bg);
+        root.style.setProperty('--primary', theme.primary);
+        root.style.setProperty('--primary-hover', theme.primaryHover);
+        root.style.setProperty('--text', theme.text);
+        root.style.setProperty('--text-light', theme.textLight);
+        root.style.setProperty('--card-bg', theme.cardBg);
+        root.style.setProperty('--card-border', theme.cardBorder);
+        root.style.setProperty('--sidebar-bg', theme.sidebarBg);
+        root.style.setProperty('--player-bar-bg', theme.playerBarBg);
+        root.style.setProperty('--hover-bg', theme.hoverBg);
+        root.style.setProperty('--control-btn-bg', theme.controlBtnBg);
+        root.style.setProperty('--control-btn-hover', theme.controlBtnHover);
+        root.style.setProperty('--accent-light', theme.accentLight);
+        root.style.setProperty('--shadow', theme.shadow);
+        
+        this.currentThemeIndex = index;
+        this.saveThemePreference();
+    }
+
+    cycleTheme() {
+        const nextIndex = (this.currentThemeIndex + 1) % this.themes.length;
+        this.applyTheme(nextIndex);
+        
+        // Небольшая анимация кнопки
+        this.themeBtn.style.transform = 'rotate(180deg)';
+        setTimeout(() => {
+            this.themeBtn.style.transform = 'rotate(0deg)';
+        }, 300);
     }
 
     // ============ LocalStorage методы ============
@@ -442,7 +596,6 @@ class MusicPlayer {
 
     isCurrentTrack(track) {
         if (this.currentTrackIndex === -1 || !track) return false;
-        // Сравниваем по id вместо ссылки на объект
         const currentTrack = this.tracks[this.currentTrackIndex];
         return currentTrack && currentTrack.id === track.id;
     }
@@ -492,7 +645,6 @@ class MusicPlayer {
             
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    // isPlaying обновится в событии 'play'
                     this.renderTrackList();
                 }).catch(error => {
                     console.error('Ошибка воспроизведения:', error);
@@ -521,7 +673,6 @@ class MusicPlayer {
         } else {
             this.audio.pause();
         }
-        // isPlaying обновится в событиях 'play'/'pause'
     }
 
     playNext() {

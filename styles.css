@@ -4,14 +4,39 @@
     box-sizing: border-box;
 }
 
+:root {
+    /* Тема 1 (по умолчанию) */
+    --bg: #f5f5f5;
+    --primary: #2196F3;
+    --primary-hover: #1976D2;
+    --text: #333;
+    --text-light: #999;
+    --card-bg: #ffffff;
+    --card-border: #e0e0e0;
+    --sidebar-bg: #fafafa;
+    --player-bar-bg: #fafafa;
+    --hover-bg: #f8f8f8;
+    --control-btn-bg: #f0f0f0;
+    --control-btn-hover: #e0e0e0;
+    --play-btn-text: #ffffff;
+    --modal-overlay: rgba(0, 0, 0, 0.5);
+    --shadow: rgba(0, 0, 0, 0.1);
+    --delete-hover: #ff4444;
+    --delete-text: #ffffff;
+    --upload-btn-text: #ffffff;
+    --accent-light: #e3f2fd;
+    --transition-speed: 0.3s;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #f5f5f5;
-    color: #333;
+    background: var(--bg);
+    color: var(--text);
     height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: background var(--transition-speed), color var(--transition-speed);
 }
 
 .app {
@@ -23,17 +48,19 @@ body {
 /* Сайдбар */
 .sidebar {
     width: 200px;
-    background: #fafafa;
-    border-right: 1px solid #e0e0e0;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--card-border);
     padding: 20px;
     display: flex;
     flex-direction: column;
+    transition: background var(--transition-speed), border-color var(--transition-speed);
 }
 
 .sidebar h2 {
     font-size: 18px;
     margin-bottom: 15px;
-    color: #666;
+    color: var(--text-light);
+    transition: color var(--transition-speed);
 }
 
 .playlists-grid {
@@ -47,8 +74,8 @@ body {
 
 .playlist-card {
     padding: 12px;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
@@ -59,13 +86,13 @@ body {
 }
 
 .playlist-card:hover {
-    border-color: #2196F3;
+    border-color: var(--primary);
 }
 
 .playlist-card.active {
-    background: #2196F3;
-    color: white;
-    border-color: #2196F3;
+    background: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
 }
 
 .playlist-icon {
@@ -75,18 +102,18 @@ body {
 .add-playlist-btn {
     padding: 12px;
     background: none;
-    border: 2px dashed #ccc;
+    border: 2px dashed var(--card-border);
     border-radius: 8px;
     cursor: pointer;
-    color: #999;
+    color: var(--text-light);
     font-size: 14px;
     width: 100%;
     transition: all 0.2s;
 }
 
 .add-playlist-btn:hover {
-    border-color: #2196F3;
-    color: #2196F3;
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 /* Центральная область */
@@ -96,6 +123,7 @@ body {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    transition: background var(--transition-speed);
 }
 
 .upload-area {
@@ -104,8 +132,8 @@ body {
 
 .upload-btn {
     padding: 10px 20px;
-    background: #2196F3;
-    color: white;
+    background: var(--primary);
+    color: var(--upload-btn-text);
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -114,7 +142,7 @@ body {
 }
 
 .upload-btn:hover {
-    background: #1976D2;
+    background: var(--primary-hover);
 }
 
 .upload-btn.playlist-mode {
@@ -135,8 +163,8 @@ body {
     display: flex;
     align-items: center;
     padding: 12px;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: 6px;
     margin-bottom: 8px;
     cursor: pointer;
@@ -144,20 +172,21 @@ body {
 }
 
 .track-item:hover {
-    background: #f8f8f8;
-    border-color: #2196F3;
+    background: var(--hover-bg);
+    border-color: var(--primary);
 }
 
 .track-item.active {
-    background: #e3f2fd;
-    border-color: #2196F3;
+    background: var(--accent-light);
+    border-color: var(--primary);
 }
 
 /* Нижняя панель плеера */
 .player-bar {
-    background: #fafafa;
-    border-top: 1px solid #e0e0e0;
+    background: var(--player-bar-bg);
+    border-top: 1px solid var(--card-border);
     padding: 12px 20px;
+    transition: background var(--transition-speed), border-color var(--transition-speed);
 }
 
 .player-bar-content {
@@ -181,12 +210,13 @@ body {
 .track-cover {
     width: 50px;
     height: 50px;
-    background: #e0e0e0;
+    background: var(--card-border);
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    transition: background var(--transition-speed);
 }
 
 .cover-placeholder {
@@ -208,19 +238,21 @@ body {
 
 .track-title {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color var(--transition-speed);
 }
 
 .track-artist {
     font-size: 12px;
-    color: #999;
+    color: var(--text-light);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color var(--transition-speed);
 }
 
 .progress-container {
@@ -234,13 +266,14 @@ body {
     flex: 1;
     height: 4px;
     cursor: pointer;
-    accent-color: #2196F3;
+    accent-color: var(--primary);
 }
 
 .time {
     font-size: 12px;
-    color: #999;
+    color: var(--text-light);
     min-width: 35px;
+    transition: color var(--transition-speed);
 }
 
 .current-time {
@@ -251,37 +284,56 @@ body {
     text-align: left;
 }
 
-/* Правая часть - громкость */
+/* Правая часть - громкость и темы */
 .volume-control {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 8px;
     min-width: 150px;
     flex: 1;
     position: relative;
 }
 
-.volume-btn {
+.volume-btn,
+.theme-btn {
     background: none;
     width: 40px;
     height: 40px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
 }
 
-.volume-btn:hover {
-    background: #f0f0f0;
+.volume-btn:hover,
+.theme-btn:hover {
+    background: var(--control-btn-hover);
+}
+
+.theme-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
 }
 
 .volume-slider-container {
     position: absolute;
     bottom: 60px;
     right: 0;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: 8px;
     padding: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px var(--shadow);
     display: none;
     z-index: 100;
+    transition: background var(--transition-speed), border-color var(--transition-speed);
 }
 
 .volume-slider-container.active {
@@ -294,7 +346,7 @@ body {
     width: 6px;
     height: 100px;
     padding: 0 5px;
-    accent-color: #2196F3;
+    accent-color: var(--primary);
     cursor: pointer;
 }
 
@@ -316,8 +368,8 @@ body {
 }
 
 .control-btn {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--control-btn-bg);
+    color: var(--text);
     border: none;
     width: 40px;
     height: 40px;
@@ -331,19 +383,19 @@ body {
 }
 
 .control-btn:hover {
-    background: #e0e0e0;
+    background: var(--control-btn-hover);
 }
 
 .play-btn {
     width: 50px;
     height: 50px;
-    background: #2196F3;
-    color: white;
+    background: var(--primary);
+    color: var(--play-btn-text);
     font-size: 18px;
 }
 
 .play-btn:hover {
-    background: #1976D2;
+    background: var(--primary-hover);
 }
 
 .track-info {
@@ -353,7 +405,7 @@ body {
 
 .track-title {
     font-size: 14px;
-    color: #666;
+    color: var(--text);
 }
 
 /* Модальные окна */
@@ -364,7 +416,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: var(--modal-overlay);
     justify-content: center;
     align-items: center;
     z-index: 1000;
@@ -375,12 +427,13 @@ body {
 }
 
 .modal-content {
-    background: white;
+    background: var(--card-bg);
     padding: 30px;
     border-radius: 12px;
     width: 400px;
     max-height: 80vh;
     overflow-y: auto;
+    transition: background var(--transition-speed);
 }
 
 .modal-large {
@@ -389,16 +442,20 @@ body {
 
 .modal-content h3 {
     margin-bottom: 20px;
-    color: #333;
+    color: var(--text);
+    transition: color var(--transition-speed);
 }
 
 .modal-content input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--card-border);
     border-radius: 6px;
     margin-bottom: 20px;
     font-size: 14px;
+    background: var(--card-bg);
+    color: var(--text);
+    transition: all var(--transition-speed);
 }
 
 .modal-buttons {
@@ -408,7 +465,8 @@ body {
     margin-top: 20px;
 }
 
-.btn-cancel, .btn-create {
+.btn-cancel,
+.btn-create {
     padding: 8px 16px;
     border: none;
     border-radius: 6px;
@@ -418,21 +476,21 @@ body {
 }
 
 .btn-cancel {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--control-btn-bg);
+    color: var(--text);
 }
 
 .btn-cancel:hover {
-    background: #e0e0e0;
+    background: var(--control-btn-hover);
 }
 
 .btn-create {
-    background: #2196F3;
-    color: white;
+    background: var(--primary);
+    color: #ffffff;
 }
 
 .btn-create:hover {
-    background: #1976D2;
+    background: var(--primary-hover);
 }
 
 /* Стили для выбора треков в модальном окне */
@@ -446,30 +504,31 @@ body {
     display: flex;
     align-items: center;
     padding: 10px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
+    background: var(--hover-bg);
+    border: 1px solid var(--card-border);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .track-select-item:hover {
-    background: #e8e8e8;
+    background: var(--control-btn-hover);
 }
 
 .track-select-item.selected {
-    background: #e3f2fd;
-    border-color: #2196F3;
+    background: var(--accent-light);
+    border-color: var(--primary);
 }
 
 .track-select-item .track-name {
     flex: 1;
     font-size: 14px;
+    color: var(--text);
 }
 
 .track-select-item .check-icon {
     font-size: 18px;
-    color: #2196F3;
+    color: var(--primary);
 }
 
 /* Стили для кнопок удаления */
@@ -484,7 +543,7 @@ body {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #999;
+    color: var(--text-light);
     cursor: pointer;
     font-size: 14px;
     padding: 4px 8px;
@@ -498,18 +557,18 @@ body {
 }
 
 .playlist-delete-btn:hover {
-    background: #ff4444;
-    color: white;
+    background: var(--delete-hover);
+    color: var(--delete-text);
 }
 
 .playlist-card.active .playlist-delete-btn {
-    color: white;
+    color: #ffffff;
     opacity: 0.8;
 }
 
 .playlist-card.active .playlist-delete-btn:hover {
     background: rgba(255, 255, 255, 0.2);
-    color: white;
+    color: #ffffff;
     opacity: 1;
 }
 
@@ -526,7 +585,7 @@ body {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #999;
+    color: var(--text-light);
     cursor: pointer;
     font-size: 16px;
     padding: 4px 8px;
@@ -540,8 +599,8 @@ body {
 }
 
 .track-delete-btn:hover {
-    background: #ff4444;
-    color: white;
+    background: var(--delete-hover);
+    color: var(--delete-text);
 }
 
 /* Стиль для кнопки удаления в модальном окне */
@@ -556,7 +615,34 @@ body {
 
 /* Сообщение в модальном окне */
 #deletePlaylistMessage {
-    color: #666;
+    color: var(--text-light);
     margin-bottom: 20px;
     font-size: 14px;
+    transition: color var(--transition-speed);
+}
+
+/* Подсказка для кнопки темы */
+.theme-btn {
+    position: relative;
+}
+
+.theme-btn::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.theme-btn:hover::after {
+    opacity: 1;
 }
