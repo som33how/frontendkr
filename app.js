@@ -7,7 +7,7 @@ class MusicPlayer {
         this.audio = new Audio();
         this.isPlaying = false;
         this.playlistToDelete = null;
-        this.storageWarningShown = false;
+        this.db = null;
         
         // Темы
         this.themes = [
@@ -104,11 +104,260 @@ class MusicPlayer {
         this.initElements();
         this.setupEventListeners();
         this.applyTheme(this.currentThemeIndex);
-        this.loadState();
+        
+        this.initDB().then(() => {
+            this.loadState();
+        });
         
         this.audio.volume = 0.7;
         this.volumeSlider.value = 70;
     }
+
+    // ============ IndexedDB методы (исправленные) ============
+
+    initDB() {
+        return new Promise((resolve, reject) => {
+            // Удаляем старую базу, если версия не совпадает
+            const DB_VERSION = 2;
+            const request = indexedDB.open('MusicPlayerDB', DB_VERSION);
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                // Удаляем старые хранилища, если они есть
+                if (db.objectStoreNames.contains('tracks')) {
+                    db.deleteObjectStore('tracks');
+                }
+                if (db.objectStoreNames.contains('playlists')) {
+                    db.deleteObjectStore('playlists');
+                }
+                if (db.objectStoreNames.contains('settings')) {
+                    db.deleteObjectStore('settings');
+                }
+                
+                // Создаём новые хранилища
+                db.createObjectStore('tracks', { keyPath: 'id' });
+                db.createObjectStore('playlists', { keyPath: 'name' });
+                db.createObjectStore('settings', { keyPath: 'key' });
+            };
+            
+            request.onsuccess = (event) => {
+                this.db = event.target.result;
+                resolve();
+            };
+            
+            request.onerror = (event) => {
+                console.error('Ошибка открытия IndexedDB:', event.target.error);
+                // Если не удалось открыть, работаем без сохранения
+                this.db = null;
+                resolve();
+            };
+            
+            request.onblocked = () => {
+                console.warn('База данных заблокирована. Закройте другие вкладки с этим приложением.');
+                resolve();
+            };
+        });
+    }
+
+    async saveState() {
+        if (!this.db) return;
+        
+        try {
+            // Сохраняем треки
+            const tx1 = this.db.transaction('tracks', 'readwrite');
+            const trackStore = tx1.objectStore('tracks');
+            
+            await new Promise((resolve, reject) => {
+                const clearReq = trackStore.clear();
+                clearReq.onsuccess = resolve;
+                clearReq.onerror = () => reject(clearReq.error);
+            });
+            
+            for (const track of this.tracks) {
+                await new Promise((resolve, reject) => {
+                    const addReq = trackStore.put({
+                        id: track.id,
+                        name: track.name,
+                        data: track.data,
+                        artist: track.artist || 'Неизвестный исполнитель'
+                    });
+                    addReq.onsuccess = resolve;
+                    addReq.onerror = () => reject(addReq.error);
+                });
+            }
+            
+            await new Promise(resolve => { tx1.oncomplete = resolve; });
+            
+            // Сохраняем плейлисты
+            const tx2 = this.db.transaction('playlists', 'readwrite');
+            const playlistStore = tx2.objectStore('playlists');
+            
+            await new Promise((resolve, reject) => {
+                const clearReq = playlistStore.clear();
+                clearReq.onsuccess = resolve;
+                clearReq.onerror = () => reject(clearReq.error);
+            });
+            
+            for (const [name, tracks] of Object.entries(this.playlists)) {
+                await new Promise((resolve, reject) => {
+                    const addReq = playlistStore.put({
+                        name: name,
+                        trackIds: tracks.map(t => t.id)
+                    });
+                    addReq.onsuccess = resolve;
+                    addReq.onerror = () => reject(addReq.error);
+                });
+            }
+            
+            await new Promise(resolve => { tx2.oncomplete = resolve; });
+            
+            // Сохраняем текущий плейлист
+            const tx3 = this.db.transaction('settings', 'readwrite');
+            const settingsStore = tx3.objectStore('settings');
+            
+            await new Promise((resolve, reject) => {
+                const putReq = settingsStore.put({
+                    key: 'currentPlaylist',
+                    value: this.currentPlaylist
+                });
+                putReq.onsuccess = resolve;
+                putReq.onerror = () => reject(putReq.error);
+            });
+            
+        } catch (e) {
+            console.error('Ошибка сохранения в IndexedDB:', e);
+        }
+    }
+
+    async loadState() {
+        if (!this.db) {
+            this.renderPlaylists();
+            this.renderTrackList();
+            return;
+        }
+        
+        try {
+            // Загружаем треки
+            const trackStore = this.db.transaction('tracks', 'readonly').objectStore('tracks');
+            const tracks = await new Promise((resolve, reject) => {
+                const req = trackStore.getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            
+            this.tracks = tracks.map(t => ({
+                id: t.id,
+                name: t.name,
+                data: t.data,
+                artist: t.artist || 'Неизвестный исполнитель',
+                url: t.data
+            }));
+            
+            // Загружаем плейлисты
+            const playlistStore = this.db.transaction('playlists', 'readonly').objectStore('playlists');
+            const playlistsData = await new Promise((resolve, reject) => {
+                const req = playlistStore.getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            
+            this.playlists = {};
+            playlistsData.forEach(pl => {
+                this.playlists[pl.name] = pl.trackIds
+                    .map(id => this.tracks.find(t => t.id === id))
+                    .filter(t => t !== undefined);
+            });
+            
+            // Загружаем настройки
+            const settingsStore = this.db.transaction('settings', 'readonly').objectStore('settings');
+            const setting = await new Promise((resolve, reject) => {
+                const req = settingsStore.get('currentPlaylist');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            
+            this.currentPlaylist = (setting && setting.value) || 'all';
+            
+        } catch (e) {
+            console.error('Ошибка загрузки из IndexedDB:', e);
+            this.tracks = [];
+            this.playlists = {};
+            this.currentPlaylist = 'all';
+        }
+        
+        this.renderPlaylists();
+        this.renderTrackList();
+        
+        document.querySelectorAll('.playlist-card').forEach(card => {
+            card.classList.remove('active');
+            if (card.dataset.playlist === this.currentPlaylist) {
+                card.classList.add('active');
+            }
+        });
+        
+        this.updateUploadButton();
+    }
+
+    // ============ Управление темами ============
+
+    loadThemePreference() {
+        try {
+            const saved = localStorage.getItem('musicPlayerTheme');
+            if (saved !== null) {
+                const index = parseInt(saved);
+                if (index >= 0 && index < this.themes.length) {
+                    this.currentThemeIndex = index;
+                }
+            }
+        } catch (e) {
+            console.log('Не удалось загрузить тему');
+        }
+    }
+
+    saveThemePreference() {
+        try {
+            localStorage.setItem('musicPlayerTheme', this.currentThemeIndex.toString());
+        } catch (e) {
+            console.log('Не удалось сохранить тему');
+        }
+    }
+
+    applyTheme(index) {
+        const theme = this.themes[index];
+        const root = document.documentElement;
+        
+        root.style.setProperty('--bg', theme.bg);
+        root.style.setProperty('--primary', theme.primary);
+        root.style.setProperty('--primary-hover', theme.primaryHover);
+        root.style.setProperty('--text', theme.text);
+        root.style.setProperty('--text-light', theme.textLight);
+        root.style.setProperty('--card-bg', theme.cardBg);
+        root.style.setProperty('--card-border', theme.cardBorder);
+        root.style.setProperty('--sidebar-bg', theme.sidebarBg);
+        root.style.setProperty('--player-bar-bg', theme.playerBarBg);
+        root.style.setProperty('--hover-bg', theme.hoverBg);
+        root.style.setProperty('--control-btn-bg', theme.controlBtnBg);
+        root.style.setProperty('--control-btn-hover', theme.controlBtnHover);
+        root.style.setProperty('--accent-light', theme.accentLight);
+        root.style.setProperty('--shadow', theme.shadow);
+        
+        this.currentThemeIndex = index;
+        this.saveThemePreference();
+        this.renderPlaylists();
+    }
+
+    cycleTheme() {
+        const nextIndex = (this.currentThemeIndex + 1) % this.themes.length;
+        this.applyTheme(nextIndex);
+        
+        this.themeBtn.style.transform = 'rotate(180deg)';
+        setTimeout(() => {
+            this.themeBtn.style.transform = 'rotate(0deg)';
+        }, 300);
+    }
+
+    // ============ Инициализация и события ============
 
     initElements() {
         this.trackList = document.getElementById('trackList');
@@ -218,7 +467,6 @@ class MusicPlayer {
             }
         });
 
-        // Кнопка переключения темы
         this.themeBtn.addEventListener('click', () => this.cycleTheme());
 
         this.audio.addEventListener('play', () => {
@@ -232,135 +480,7 @@ class MusicPlayer {
         });
     }
 
-    // ============ Управление темами ============
-
-    loadThemePreference() {
-        try {
-            const saved = localStorage.getItem('musicPlayerTheme');
-            if (saved !== null) {
-                const index = parseInt(saved);
-                if (index >= 0 && index < this.themes.length) {
-                    this.currentThemeIndex = index;
-                }
-            }
-        } catch (e) {
-            console.log('Не удалось загрузить тему');
-        }
-    }
-
-    saveThemePreference() {
-        try {
-            localStorage.setItem('musicPlayerTheme', this.currentThemeIndex.toString());
-        } catch (e) {
-            console.log('Не удалось сохранить тему');
-        }
-    }
-
-    applyTheme(index) {
-        const theme = this.themes[index];
-        const root = document.documentElement;
-        
-        root.style.setProperty('--bg', theme.bg);
-        root.style.setProperty('--primary', theme.primary);
-        root.style.setProperty('--primary-hover', theme.primaryHover);
-        root.style.setProperty('--text', theme.text);
-        root.style.setProperty('--text-light', theme.textLight);
-        root.style.setProperty('--card-bg', theme.cardBg);
-        root.style.setProperty('--card-border', theme.cardBorder);
-        root.style.setProperty('--sidebar-bg', theme.sidebarBg);
-        root.style.setProperty('--player-bar-bg', theme.playerBarBg);
-        root.style.setProperty('--hover-bg', theme.hoverBg);
-        root.style.setProperty('--control-btn-bg', theme.controlBtnBg);
-        root.style.setProperty('--control-btn-hover', theme.controlBtnHover);
-        root.style.setProperty('--accent-light', theme.accentLight);
-        root.style.setProperty('--shadow', theme.shadow);
-        
-        this.currentThemeIndex = index;
-        this.saveThemePreference();
-        this.renderPlaylists();
-    }
-
-    cycleTheme() {
-        const nextIndex = (this.currentThemeIndex + 1) % this.themes.length;
-        this.applyTheme(nextIndex);
-        
-        // Небольшая анимация кнопки
-        this.themeBtn.style.transform = 'rotate(180deg)';
-        setTimeout(() => {
-            this.themeBtn.style.transform = 'rotate(0deg)';
-        }, 300);
-    }
-
-    // ============ LocalStorage методы ============
-
-    saveState() {
-        try {
-            const state = {
-                tracks: this.tracks.map(t => ({
-                    id: t.id,
-                    name: t.name,
-                    data: t.data,
-                    artist: t.artist
-                })),
-                playlists: this.playlists,
-                currentPlaylist: this.currentPlaylist
-            };
-            localStorage.setItem('musicPlayerState', JSON.stringify(state));
-        } catch (e) {
-            console.log('localStorage переполнен, сохранение невозможно');
-        }
-    }
-
-    loadState() {
-        try {
-            const saved = localStorage.getItem('musicPlayerState');
-            if (!saved) {
-                this.renderPlaylists();
-                this.renderTrackList();
-                return;
-            }
-
-            const state = JSON.parse(saved);
-
-            this.tracks = (state.tracks || []).map(t => ({
-                id: t.id,
-                name: t.name,
-                data: t.data,
-                artist: t.artist || 'Неизвестный исполнитель',
-                url: t.data
-            }));
-
-            this.playlists = state.playlists || {};
-
-            Object.keys(this.playlists).forEach(playlistName => {
-                this.playlists[playlistName] = this.playlists[playlistName].map(pt => {
-                    return this.tracks.find(t => t.id === pt.id);
-                }).filter(t => t !== undefined);
-            });
-
-            this.currentPlaylist = state.currentPlaylist || 'all';
-
-            this.renderPlaylists();
-            this.renderTrackList();
-
-            document.querySelectorAll('.playlist-card').forEach(card => {
-                card.classList.remove('active');
-                if (card.dataset.playlist === this.currentPlaylist) {
-                    card.classList.add('active');
-                }
-            });
-
-            this.updateUploadButton();
-
-        } catch (e) {
-            console.error('Ошибка загрузки из localStorage:', e);
-            this.tracks = [];
-            this.playlists = {};
-            this.currentPlaylist = 'all';
-            this.renderPlaylists();
-            this.renderTrackList();
-        }
-    }
+    // ============ Загрузка файлов ============
 
     updateUploadButton() {
         if (this.currentPlaylist === 'all') {
@@ -376,8 +496,6 @@ class MusicPlayer {
             };
         }
     }
-
-    // ============ Загрузка файлов ============
 
     handleFileUpload(files) {
         Array.from(files).forEach(file => {
@@ -403,12 +521,6 @@ class MusicPlayer {
                 this.tracks.push(track);
                 this.saveState();
                 this.renderTrackList();
-                
-                const dataSizeMB = (track.data.length / (1024 * 1024)).toFixed(2);
-                if (dataSizeMB > 3 && !this.storageWarningShown) {
-                    console.warn(`Внимание: файл "${track.name}" весит ${dataSizeMB} МБ в Base64. Может не сохраниться в localStorage.`);
-                    this.storageWarningShown = true;
-                }
             };
             
             reader.onerror = () => {
@@ -569,7 +681,7 @@ class MusicPlayer {
         
         if (currentTracks.length === 0) {
             this.trackList.innerHTML = `
-                <div style="text-align: center; color: #999; padding: 40px;">
+                <div style="text-align: center; color: var(--text-light); padding: 40px;">
                     ${this.currentPlaylist === 'all' ? 
                         'Загрузите треки, чтобы начать' : 
                         'Добавьте треки в этот плейлист'}
@@ -598,26 +710,26 @@ class MusicPlayer {
     }
 
     renderPlaylists() {
-    const allPlaylistsHTML = `
-        <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
-             data-playlist="all">
-            <span>Все треки</span>
-        </div>
-    `;
-    
-    const customPlaylistsHTML = Object.keys(this.playlists).map(name => {
-        const emoji = this.getPlaylistEmoji();
-        return `
-            <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
-                 data-playlist="${name}">
-                <span>${emoji} ${name}</span>
-                <button class="playlist-delete-btn" title="Удалить плейлист">✕</button>
+        const allPlaylistsHTML = `
+            <div class="playlist-card ${this.currentPlaylist === 'all' ? 'active' : ''}" 
+                 data-playlist="all">
+                <span>Все треки</span>
             </div>
         `;
-    }).join('');
-    
-    this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
-}
+        
+        const customPlaylistsHTML = Object.keys(this.playlists).map(name => {
+            const emoji = this.getPlaylistEmoji();
+            return `
+                <div class="playlist-card ${this.currentPlaylist === name ? 'active' : ''}" 
+                     data-playlist="${name}">
+                    <span>${emoji} ${name}</span>
+                    <button class="playlist-delete-btn" title="Удалить плейлист">✕</button>
+                </div>
+            `;
+        }).join('');
+        
+        this.playlistsGrid.innerHTML = allPlaylistsHTML + customPlaylistsHTML;
+    }
 
     // ============ Воспроизведение ============
 
